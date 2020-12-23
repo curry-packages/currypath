@@ -91,7 +91,10 @@ modNameToPath :: ModuleIdent -> String
 modNameToPath = foldr1 (</>) . split (=='.')
 
 --- Name of the sub directory where auxiliary files (.fint, .fcy, etc)
---- are stored.
+--- are stored. Note that the name of this directory depends
+--- on the compiler to avoid confusion when using different compilers.
+--- For instance, when using PAKCS 3.2.0, `currySubdir` evaluates
+--- to `".curry/pakcs-3.2.0"`.
 currySubdir :: FilePath
 currySubdir =
   ".curry" </> curryCompiler ++ "-" ++
@@ -100,10 +103,10 @@ currySubdir =
                curryCompilerRevisionVersion])
 
 --- Transforms a path to a module name into a file name
---- by adding the `currySubDir` to the path and transforming
+--- by adding the result of 'currySubDir' to the path and transforming
 --- a hierarchical module name into a path.
---- For instance, `inCurrySubdir "mylib/Data.Char"` evaluates to
---- `"mylib/.curry/Data/Char"`.
+--- For instance, when using PAKCS 3.2.0, `inCurrySubdir "mylib/Data.Char"`
+--- evaluates to `"mylib/.curry/pakcs-3.2.0/Data/Char"`.
 inCurrySubdir :: FilePath -> FilePath
 inCurrySubdir filename =
   let (base,file) = splitFileName filename
