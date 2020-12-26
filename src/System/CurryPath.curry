@@ -8,6 +8,7 @@
 
 module System.CurryPath
   ( ModuleIdent
+  , splitProgramName, splitValidProgramName, isValidModuleName
   , splitModuleFileName, splitModuleIdentifiers  , joinModuleIdentifiers
   , stripCurrySuffix
   , ModulePath, modNameToPath
@@ -23,13 +24,14 @@ import Curry.Compiler.Distribution
                            , curryCompilerRevisionVersion
                            , installDir )
 import Data.Char           ( toLower )
-import Data.List           ( intercalate, split )
+import Data.List           ( init, intercalate, last, split )
 import System.Directory    ( doesFileExist, getHomeDirectory )
 import System.Environment  ( getEnv )
 import System.Process      ( system )
 import System.FilePath     ( FilePath, (</>), (<.>), addTrailingPathSeparator
                            , dropFileName, joinPath, splitDirectories
-                           , splitExtension, splitFileName, splitSearchPath
+                           , splitExtension, splitFileName, splitPath
+                           , splitSearchPath
                            , takeFileName, takeExtension, dropExtension
                            )
 
@@ -40,6 +42,49 @@ import Data.PropertyFile   ( getPropertyFromFile )
 -----------------------------------------------------------
 
 type ModuleIdent = String
+
+--- Splits a program name, i.e., a module name possibly prefixed by
+--- a directory, into the directory and the module name.
+--- A possible suffix like `.curry` or `.lcurry` is dropped from the
+--- module name.
+--- For instance `splitProgramName "lib/Data.Set.curry"` evaluates
+--- to `("lib","Data.Set")`.
+splitProgramName :: String -> (FilePath, ModuleIdent)
+splitProgramName s
+  | null ps
+  = (".", "")
+  | null (tail ps)
+  = (".", head ps)
+  | otherwise
+  = (concat (init ps), last ps)
+ where
+  ps = splitPath (stripCurrySuffix s)
+
+--- Splits a program name, i.e., a module name possibly prefixed by
+--- a directory, into the directory and a *valid* module name.
+--- A possible suffix like `.curry` or `.lcurry` is dropped from the
+--- module name.
+--- For instance `splitValidProgramName "lib/Data.Set.curry"` evaluates
+--- to `("lib","Data.Set")`.
+--- An error is raised if the program name is empty or the module name
+--- is not valid.
+splitValidProgramName :: String -> (FilePath, ModuleIdent)
+splitValidProgramName s
+  | null mname
+  = error $ "The module name is empty."
+  | not (isValidModuleName mname)
+  = error $ "The program name '" ++ s ++ "' contains an invalid module name."
+  | otherwise
+  = (dir,mname)
+ where
+  (dir,mname) = splitProgramName s
+
+--- Is the given string a valid module name?
+isValidModuleName :: String -> Bool
+isValidModuleName = all isModId . split (=='.')
+ where
+  isModId []     = False
+  isModId (c:cs) = isAlpha c && all (\x -> isAlphaNum x || x `elem` "_'") cs
 
 --- Split the `FilePath` of a module into the directory prefix and the
 --- `FilePath` corresponding to the module name.
@@ -69,7 +114,7 @@ joinModuleIdentifiers :: [String] -> ModuleIdent
 joinModuleIdentifiers = foldr1 combine
   where combine xs ys = xs ++ '.' : ys
 
---- Strips the suffix ".curry" or ".lcurry" from a file name.
+--- Strips the suffix `.curry` or `.lcurry` from a file name.
 stripCurrySuffix :: String -> String
 stripCurrySuffix s =
   if takeExtension s `elem` [".curry",".lcurry"]
