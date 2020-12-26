@@ -9,6 +9,7 @@
 module System.CurryPath
   ( ModuleIdent
   , splitProgramName, splitValidProgramName, isValidModuleName
+  , runModuleAction
   , splitModuleFileName, splitModuleIdentifiers  , joinModuleIdentifiers
   , stripCurrySuffix
   , ModulePath, modNameToPath
@@ -18,6 +19,7 @@ module System.CurryPath
   , curryrcFileName
   ) where
 
+import Control.Monad       ( unless )
 import Curry.Compiler.Distribution
                            ( curryCompiler, curryCompilerMajorVersion
                            , curryCompilerMinorVersion
@@ -25,7 +27,8 @@ import Curry.Compiler.Distribution
                            , installDir )
 import Data.Char           ( toLower )
 import Data.List           ( init, intercalate, last, split )
-import System.Directory    ( doesFileExist, getHomeDirectory )
+import System.Directory    ( doesFileExist, getCurrentDirectory
+                           , getHomeDirectory, setCurrentDirectory )
 import System.Environment  ( getEnv )
 import System.Process      ( system )
 import System.FilePath     ( FilePath, (</>), (<.>), addTrailingPathSeparator
@@ -37,9 +40,9 @@ import System.FilePath     ( FilePath, (</>), (<.>), addTrailingPathSeparator
 
 import Data.PropertyFile   ( getPropertyFromFile )
 
------------------------------------------------------------
+------------------------------------------------------------------------------
 --- Functions for handling file names of Curry modules
------------------------------------------------------------
+------------------------------------------------------------------------------
 
 type ModuleIdent = String
 
@@ -85,6 +88,23 @@ isValidModuleName = all isModId . split (=='.')
  where
   isModId []     = False
   isModId (c:cs) = isAlpha c && all (\x -> isAlphaNum x || x `elem` "_'") cs
+
+--- Executes an I/O action, which is parameterized over a module name,
+--- for a given program name. If the program name is prefixed by a directory,
+--- switch to this directory before executing the action.
+--- A possible suffix like `.curry` or `.lcurry` is dropped from the
+--- module name passed to the action.
+--- An error is raised if the module name is not valid.
+runModuleAction :: (String -> IO a) -> String -> IO a
+runModuleAction modaction progname = do
+  let (progdir,mname) = splitValidProgramName progname
+  curdir <- getCurrentDirectory
+  unless (progdir == ".") $ do
+    putStrLn $ "Switching to directory '" ++ progdir ++ "'..."
+    setCurrentDirectory progdir
+  result <- modaction mname
+  unless (progdir == ".") $ setCurrentDirectory curdir
+  return result
 
 --- Split the `FilePath` of a module into the directory prefix and the
 --- `FilePath` corresponding to the module name.
@@ -168,9 +188,9 @@ inCurrySubdirModule m fn = let (dirP, modP) = splitModuleFileName m fn
 addCurrySubdir :: FilePath -> FilePath
 addCurrySubdir dir = dir </> currySubdir
 
------------------------------------------------------------
---- finding files in correspondence to compiler load path
------------------------------------------------------------
+------------------------------------------------------------------------------
+--- Finding files in correspondence to compiler load path
+------------------------------------------------------------------------------
 
 --- Returns the current path (list of directory names) of the
 --- system libraries.
