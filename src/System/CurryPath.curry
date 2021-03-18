@@ -25,12 +25,10 @@ import Curry.Compiler.Distribution
                            , curryCompilerMinorVersion
                            , curryCompilerRevisionVersion
                            , installDir )
-import Data.Char           ( toLower )
 import Data.List           ( init, intercalate, last, split )
 import System.Directory    ( doesFileExist, getCurrentDirectory
                            , getHomeDirectory, setCurrentDirectory )
 import System.Environment  ( getEnv )
-import System.Process      ( system )
 import System.FilePath     ( FilePath, (</>), (<.>), addTrailingPathSeparator
                            , dropFileName, joinPath, splitDirectories
                            , splitExtension, splitFileName, splitPath
