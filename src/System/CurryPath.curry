@@ -3,7 +3,7 @@
 --- used in Curry system.
 ---
 --- @author Bernd Brassel, Michael Hanus, Bjoern Peemoeller, Finn Teegen
---- @version December 2020
+--- @version September 2021
 ------------------------------------------------------------------------------
 
 module System.CurryPath
@@ -32,8 +32,7 @@ import System.Environment  ( getEnv )
 import System.FilePath     ( FilePath, (</>), (<.>), addTrailingPathSeparator
                            , dropFileName, joinPath, splitDirectories
                            , splitExtension, splitFileName, splitPath
-                           , splitSearchPath
-                           , takeFileName, takeExtension, dropExtension
+                           , splitSearchPath, takeExtension, dropExtension
                            )
 
 import Data.PropertyFile   ( getPropertyFromFile )
@@ -216,7 +215,8 @@ getLoadPathForModule modpath = do
            (if null currypath then [] else splitSearchPath currypath) ++
            llib ++ sysLibPath
 
---- Returns a directory name and the actual source file name for a module
+--- Returns a directory name and the actual source file name for
+--- a given module name (where a possible `curry` suffix is stripped off)
 --- by looking up the module source in the current load path.
 --- If the module is hierarchical, the directory is the top directory
 --- of the hierarchy.
@@ -226,26 +226,32 @@ lookupModuleSourceInLoadPath modpath = do
   loadpath <- getLoadPathForModule modpath
   lookupModuleSource loadpath modpath
 
---- Returns a directory name and the actual source file name for a module
+--- Returns a directory name and the actual source file name for
+--- a given module name (where a possible `curry` suffix is stripped off)
 --- by looking up the module source in the load path provided as the
 --- first argument.
 --- If the module is hierarchical, the directory is the top directory
 --- of the hierarchy.
 --- Returns Nothing if there is no corresponding source file.
 lookupModuleSource :: [String] -> String -> IO (Maybe (String,String))
-lookupModuleSource loadpath mod = lookupSourceInPath loadpath
+lookupModuleSource loadpath mods =
+  if isValidModuleName mod
+    then lookupSourceInPath loadpath
+    else return Nothing
  where
-  fn       = takeFileName mod
-  fnlcurry = modNameToPath fn ++ ".lcurry"
-  fncurry  = modNameToPath fn ++ ".curry"
+  mod      = stripCurrySuffix mods
+  fnlcurry = modNameToPath mod ++ ".lcurry"
+  fncurry  = modNameToPath mod ++ ".curry"
 
   lookupSourceInPath [] = return Nothing
   lookupSourceInPath (dir:dirs) = do
     lcurryExists <- doesFileExist (dir </> fnlcurry)
-    if lcurryExists then return (Just (dir, dir </> fnlcurry)) else do
-     curryExists <- doesFileExist (dir </> fncurry)
-     if curryExists then return (Just (dir, dir </> fncurry))
-                    else lookupSourceInPath dirs
+    if lcurryExists
+      then return (Just (dir, dir </> fnlcurry))
+      else do
+        curryExists <- doesFileExist (dir </> fncurry)
+        if curryExists then return (Just (dir, dir </> fncurry))
+                       else lookupSourceInPath dirs
 
 ------------------------------------------------------------------------------
 --- The name of the file specifying resource configuration parameters of the
