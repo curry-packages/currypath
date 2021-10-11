@@ -3,13 +3,13 @@
 --- used in Curry system.
 ---
 --- @author Bernd Brassel, Michael Hanus, Bjoern Peemoeller, Finn Teegen
---- @version September 2021
+--- @version October 2021
 ------------------------------------------------------------------------------
 
 module System.CurryPath
   ( ModuleIdent
   , splitProgramName, splitValidProgramName, isValidModuleName
-  , runModuleAction
+  , runModuleAction, runModuleActionQuiet
   , splitModuleFileName, splitModuleIdentifiers  , joinModuleIdentifiers
   , stripCurrySuffix
   , ModulePath, modNameToPath
@@ -88,16 +88,38 @@ isValidModuleName = all isModId . split (=='.')
 
 --- Executes an I/O action, which is parameterized over a module name,
 --- for a given program name. If the program name is prefixed by a directory,
---- switch to this directory before executing the action.
+--- switch to this directory before executing the action, report
+--- this switch on stdout, and switch back after the action.
 --- A possible suffix like `.curry` or `.lcurry` is dropped from the
 --- module name passed to the action.
 --- An error is raised if the module name is not valid.
 runModuleAction :: (String -> IO a) -> String -> IO a
-runModuleAction modaction progname = do
+runModuleAction = runModuleActionWith False
+
+--- Executes an I/O action, which is parameterized over a module name,
+--- for a given program name. If the program name is prefixed by a directory,
+--- switch to this directory before executing the action and switch
+--- back after the action.
+--- A possible suffix like `.curry` or `.lcurry` is dropped from the
+--- module name passed to the action.
+--- An error is raised if the module name is not valid.
+runModuleActionQuiet :: (String -> IO a) -> String -> IO a
+runModuleActionQuiet = runModuleActionWith True
+
+--- Executes an I/O action, which is parameterized over a module name,
+--- for a given program name. If the program name is prefixed by a directory,
+--- switch to this directory before executing the action and switch
+--- back after the action.
+--- If the first argument is `True`, the directy switch is reported on stdout.
+--- A possible suffix like `.curry` or `.lcurry` is dropped from the
+--- module name passed to the action.
+--- An error is raised if the module name is not valid.
+runModuleActionWith :: Bool -> (String -> IO a) -> String -> IO a
+runModuleActionWith quiet modaction progname = do
   let (progdir,mname) = splitValidProgramName progname
   curdir <- getCurrentDirectory
   unless (progdir == ".") $ do
-    putStrLn $ "Switching to directory '" ++ progdir ++ "'..."
+    unless quiet $ putStrLn $ "Switching to directory '" ++ progdir ++ "'..."
     setCurrentDirectory progdir
   result <- modaction mname
   unless (progdir == ".") $ setCurrentDirectory curdir
